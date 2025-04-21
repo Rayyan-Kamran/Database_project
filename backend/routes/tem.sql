@@ -1,0 +1,161 @@
+-- --register a new voter 
+
+-- CREATE PROCEDURE RegisterVoter
+--     @FullName NVARCHAR(100),
+--     @CNIC NVARCHAR(15),
+--     @Email NVARCHAR(100),
+--     @Password NVARCHAR(100)
+-- AS
+-- BEGIN
+--     SET NOCOUNT ON;
+
+--     IF EXISTS (SELECT 1 FROM Voters WHERE CNIC = @CNIC OR Email = @Email)
+--     BEGIN
+--         RAISERROR('Voter with this CNIC or Email already exists!', 16, 1);
+--         RETURN;
+--     END
+
+--     INSERT INTO Voters (FullName, CNIC, Email, PasswordHash, IsVerified)
+--     VALUES (@FullName, @CNIC, @Email, HASHBYTES('SHA2_256', @Password), 0);
+
+--     PRINT '✅ Voter registered successfully!';
+-- END;
+-- --verify voter login 
+-- CREATE PROCEDURE VerifyVoterLogin
+--     @Email NVARCHAR(100),
+--     @Password NVARCHAR(100)
+-- AS
+-- BEGIN
+--     SET NOCOUNT ON;
+
+--     IF EXISTS (
+--         SELECT 1 FROM Voters 
+--         WHERE Email = @Email 
+--         AND PasswordHash = HASHBYTES('SHA2_256', @Password)
+--     )
+--     BEGIN
+--         PRINT '✅ Login successful!';
+--         RETURN;
+--     END
+--     ELSE
+--     BEGIN
+--         RAISERROR('❌ Invalid credentials!', 16, 1);
+--         RETURN;
+--     END
+-- END;
+-- --cast a vote 
+-- CREATE PROCEDURE CastVote
+--     @VoterID INT,
+--     @CandidateID INT,
+--     @ElectionID INT
+-- AS
+-- BEGIN
+--     SET NOCOUNT ON;
+
+--     -- Check if voter already voted in the election
+--     IF EXISTS (
+--         SELECT 1 FROM Votes 
+--         WHERE VoterID = @VoterID 
+--         AND ElectionID = @ElectionID
+--     )
+--     BEGIN
+--         RAISERROR('❌ You have already voted in this election!', 16, 1);
+--         RETURN;
+--     END
+
+--     -- Insert the vote
+--     INSERT INTO Votes (VoterID, CandidateID, ElectionID) 
+--     VALUES (@VoterID, @CandidateID, @ElectionID);
+
+--     PRINT '✅ Vote cast successfully!';
+-- END;
+-- --get the election result 
+-- CREATE PROCEDURE GetElectionResults
+--     @ElectionID INT
+-- AS
+-- BEGIN
+--     SET NOCOUNT ON;
+
+--     SELECT 
+--         C.CandidateID,
+--         C.FullName AS CandidateName,
+--         C.PartyName,
+--         COUNT(V.VoteID) AS TotalVotes
+--     FROM Candidates C
+--     LEFT JOIN Votes V ON C.CandidateID = V.CandidateID
+--     WHERE C.ElectionID = @ElectionID
+--     GROUP BY C.CandidateID, C.FullName, C.PartyName
+--     ORDER BY TotalVotes DESC;
+-- END;
+-- --log action in audit table 
+-- CREATE PROCEDURE LogAction
+--     @VoterID INT = NULL,
+--     @AdminID INT = NULL,
+--     @Action VARCHAR(255)
+-- AS
+-- BEGIN
+--     INSERT INTO Audit_Log (VoterID, AdminID, Action) 
+--     VALUES (@VoterID, @AdminID, @Action);
+-- END;
+-- -- veiw verify voter 
+-- CREATE VIEW VerifiedVoters AS
+-- SELECT VoterID, FullName, CNIC, Email, CreatedAt
+-- FROM Voters
+-- WHERE IsVerified = 1;
+-- -- veiw electoon summary 
+-- CREATE VIEW ElectionSummary AS
+-- SELECT 
+--     E.ElectionID,
+--     E.ElectionName,
+--     E.StartDate,
+--     E.EndDate,
+--     COUNT(V.VoteID) AS TotalVotes
+-- FROM Elections E
+-- LEFT JOIN Votes V ON E.ElectionID = V.ElectionID
+-- GROUP BY E.ElectionID, E.ElectionName, E.StartDate, E.EndDate;
+-- --veiw votes per candidates 
+-- CREATE VIEW VotesPerCandidate AS
+-- SELECT 
+--     C.CandidateID,
+--     C.FullName AS CandidateName,
+--     C.PartyName,
+--     E.ElectionName,
+--     COUNT(V.VoteID) AS TotalVotes
+-- FROM Candidates C
+-- JOIN Elections E ON C.ElectionID = E.ElectionID
+-- LEFT JOIN Votes V ON C.CandidateID = V.CandidateID
+-- GROUP BY C.CandidateID, C.FullName, C.PartyName, E.ElectionName;
+-- --
+-- EXEC RegisterVoter 'Alice Johnson', '98765-4321098-7', 'alice@email.com', 'mypassword123';
+-- EXEC VerifyVoterLogin 'alice@email.com', 'mypassword123';
+-- EXEC CastVote 1, 2, 1;  -- VoterID, CandidateID, ElectionID
+-- EXEC GetElectionResults 1;
+-- EXEC LogAction @VoterID = 1, @Action = 'Voter logged in';
+-- CREATE PROCEDURE GetAdminAccess 
+--     @AdminID INT
+-- AS
+-- BEGIN
+--     -- Check if Admin Exists and has the required Role
+--     IF EXISTS (SELECT 1 FROM Admins WHERE AdminID = @AdminID AND Role = 'Admin')
+--     BEGIN
+--         -- Fetch Voter Details
+--         PRINT 'Voter Details:'
+--         SELECT * FROM Voters;
+
+--         -- Fetch Election Details
+--         PRINT 'Election Details:'
+--         SELECT * FROM Elections;
+
+--         -- Fetch Candidate and Votes
+--         PRINT 'Candidates and Votes:'
+--         SELECT c.CandidateID, c.FullName, c.PartyName, v.ElectionID, COUNT(v.VoteID) AS TotalVotes
+--         FROM Candidates c
+--         LEFT JOIN Votes v ON c.CandidateID = v.CandidateID
+--         GROUP BY c.CandidateID, c.FullName, c.PartyName, v.ElectionID
+--         ORDER BY v.ElectionID, TotalVotes DESC;
+--     END
+--     ELSE
+--     BEGIN
+--         PRINT 'Access Denied: You do not have admin privileges.'
+--     END
+-- END;
